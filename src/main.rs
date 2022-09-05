@@ -1,7 +1,10 @@
+use rand::thread_rng;
+use rand_distr::{Distribution, Normal, NormalError};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
+use std::iter::zip;
 use std::rc::Rc;
 
 // Structures
@@ -171,6 +174,53 @@ pub fn backward(vc: &ValueCell) {
     }
 }
 
+// Layers
+
+pub struct NonLinear {
+    w: Vec<Vec<ValueCell>>,
+    b: Vec<ValueCell>,
+}
+
+impl NonLinear {
+    pub fn new(inp: usize, out: usize, prefix: &str) -> Result<Self, NormalError> {
+        let mut w = Vec::with_capacity(out);
+        let mut b = Vec::with_capacity(out);
+        for j in 0..out {
+            let v = random_vector(inp, &format!("w{}{}", prefix, j + 1))?;
+            w.push(v);
+            b.push(lit(0., format!("b{}", j + 1)));
+        }
+        Ok(NonLinear { w, b })
+    }
+
+    pub fn forward(&self, x: &Vec<ValueCell>) -> Vec<ValueCell> {
+        let size = self.b.len();
+        let mut y = Vec::with_capacity(size);
+        for j in 0..size {
+            let mut b = Rc::clone(&self.b[j]);
+            for (wi, xi) in zip(&self.w[j], x) {
+                b = add(&mul(wi, xi), &b);
+            }
+            let a = tanh(&b);
+            y.push(a);
+        }
+        y
+    }
+}
+
+// Utilities
+
+fn random_vector(size: usize, prefix: &str) -> Result<Vec<ValueCell>, NormalError> {
+    let mut rng = thread_rng();
+    let normal = Normal::new(0., 1.)?;
+    let mut w = Vec::with_capacity(size);
+    for i in 0..size {
+        let x = normal.sample(&mut rng);
+        w.push(lit(x, format!("{}{}", prefix, i + 1)));
+    }
+    Ok(w)
+}
+
 // Visualization
 
 pub fn graphviz(e: &ValueCell) -> std::io::Result<()> {
@@ -310,6 +360,48 @@ mod tests {
         backward(o);
         graphviz(o)?;
 
+        Ok(())
+    }
+
+    fn nonlinear(
+        x: &Vec<ValueCell>,
+        size: usize,
+        prefix: &str,
+    ) -> Result<Vec<ValueCell>, NormalError> {
+        let mut y = Vec::with_capacity(size);
+        for j in 0..size {
+            let w = random_vector(x.len(), &format!("w{}{}", prefix, j + 1))?;
+            let mut b = lit(0., format!("b1{}", j + 1));
+            for (wi, xi) in zip(w, x) {
+                b = add(&mul(&wi, &xi), &b);
+            }
+            let a = tanh(&b);
+            y.push(a);
+        }
+        Ok(y)
+    }
+
+    #[test]
+    fn nn() -> Result<(), NormalError> {
+        let (inp, mid, out) = (2, 3, 1);
+        let x = random_vector(inp, "x")?;
+        let y = nonlinear(&x, mid, "1")?;
+        let z = nonlinear(&y, out, "2")?;
+        let o = &z[0];
+        backward(&o);
+        graphviz(&o).ok();
+        Ok(())
+    }
+
+    #[test]
+    fn layered() -> Result<(), NormalError> {
+        let (inp, mid, out) = (2, 3, 1);
+        let x = random_vector(inp, "x")?;
+        let y = NonLinear::new(inp, mid, "1")?.forward(&x);
+        let z = NonLinear::new(mid, out, "2")?.forward(&y);
+        let o = &z[0];
+        backward(&o);
+        graphviz(&o).ok();
         Ok(())
     }
 }
