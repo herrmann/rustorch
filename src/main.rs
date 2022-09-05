@@ -208,6 +208,29 @@ impl NonLinear {
     }
 }
 
+pub struct MLP {
+    layers: Vec<NonLinear>,
+}
+
+impl MLP {
+    pub fn new(sizes: &[usize]) -> Result<Self, NormalError> {
+        let mut layers = Vec::with_capacity(sizes.len() - 1);
+        for (l, size) in sizes.windows(2).enumerate() {
+            let layer = NonLinear::new(size[0], size[1], &format!("{}", l + 1))?;
+            layers.push(layer);
+        }
+        Ok(MLP { layers })
+    }
+
+    pub fn forward(&self, xs: &Vec<ValueCell>) -> Vec<ValueCell> {
+        let mut ys = self.layers[0].forward(xs);
+        for l in 1..self.layers.len() {
+            ys = self.layers[l].forward(&ys);
+        }
+        ys
+    }
+}
+
 // Utilities
 
 fn random_vector(size: usize, prefix: &str, std_dev: f32) -> Result<Vec<ValueCell>, NormalError> {
@@ -402,6 +425,29 @@ mod tests {
         let o = &z[0];
         backward(&o);
         graphviz(&o).ok();
+        Ok(())
+    }
+
+    #[test]
+    fn backprop() -> Result<(), NormalError> {
+        let xs = [[2., 3., -1.], [3., -1., 0.5], [0.5, 1., 1.], [1., 1., -1.]];
+        let ys = [1., -1., -1., 1.];
+        let model = MLP::new(&[3, 4, 4, 1])?;
+        let mut loss = lit(0., "0".to_string());
+        for (i, (x, y)) in zip(xs, ys).enumerate() {
+            let x: Vec<ValueCell> = x
+                .iter()
+                .enumerate()
+                .map(|(j, x)| lit(*x, format!("x{}{}", i + 1, j + 1)))
+                .collect();
+            let y = lit(y, format!("y{}", i + 1));
+            let y_pred = &model.forward(&x)[0];
+            let diff = sub(&y, y_pred);
+            let local_loss = pow(&diff, 2.);
+            loss = add(&loss, &local_loss);
+        }
+        backward(&loss);
+        graphviz(&loss).ok();
         Ok(())
     }
 }
