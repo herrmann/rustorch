@@ -186,7 +186,7 @@ impl NonLinear {
         let mut w = Vec::with_capacity(out);
         let mut b = Vec::with_capacity(out);
         for j in 0..out {
-            let v = random_vector(inp, &format!("w{}{}", prefix, j + 1))?;
+            let v = random_vector(inp, &format!("w{}{}", prefix, j + 1), 1. / (inp as f32).sqrt())?;
             w.push(v);
             b.push(lit(0., format!("b{}", j + 1)));
         }
@@ -210,9 +210,9 @@ impl NonLinear {
 
 // Utilities
 
-fn random_vector(size: usize, prefix: &str) -> Result<Vec<ValueCell>, NormalError> {
+fn random_vector(size: usize, prefix: &str, std_dev: f32) -> Result<Vec<ValueCell>, NormalError> {
     let mut rng = thread_rng();
-    let normal = Normal::new(0., 1.)?;
+    let normal = Normal::new(0., std_dev)?;
     let mut w = Vec::with_capacity(size);
     for i in 0..size {
         let x = normal.sample(&mut rng);
@@ -370,7 +370,7 @@ mod tests {
     ) -> Result<Vec<ValueCell>, NormalError> {
         let mut y = Vec::with_capacity(size);
         for j in 0..size {
-            let w = random_vector(x.len(), &format!("w{}{}", prefix, j + 1))?;
+            let w = random_vector(x.len(), &format!("w{}{}", prefix, j + 1), 1.)?;
             let mut b = lit(0., format!("b1{}", j + 1));
             for (wi, xi) in zip(w, x) {
                 b = add(&mul(&wi, &xi), &b);
@@ -384,7 +384,7 @@ mod tests {
     #[test]
     fn nn() -> Result<(), NormalError> {
         let (inp, mid, out) = (2, 3, 1);
-        let x = random_vector(inp, "x")?;
+        let x = random_vector(inp, "x", 1.)?;
         let y = nonlinear(&x, mid, "1")?;
         let z = nonlinear(&y, out, "2")?;
         let o = &z[0];
@@ -396,7 +396,7 @@ mod tests {
     #[test]
     fn layered() -> Result<(), NormalError> {
         let (inp, mid, out) = (2, 3, 1);
-        let x = random_vector(inp, "x")?;
+        let x = random_vector(inp, "x", 1.)?;
         let y = NonLinear::new(inp, mid, "1")?.forward(&x);
         let z = NonLinear::new(mid, out, "2")?.forward(&y);
         let o = &z[0];
