@@ -1,5 +1,8 @@
+#![feature(stdsimd)]
+
 use rand::thread_rng;
 use rand_distr::{Distribution, Normal, NormalError};
+use std::arch::x86_64::*;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs::File;
@@ -280,6 +283,38 @@ impl SGD {
     }
 }
 
+// SIMD
+
+/// Calculates the dot product between the two 8d vectors `x` and `y`.
+pub fn avx2_dot_f32x8(x: &[f32; 8], y: &[f32; 8]) -> f32 {
+    let res;
+    unsafe {
+        let i0 = _mm256_loadu_ps(x.as_ptr());
+        let i1 = _mm256_loadu_ps(y.as_ptr());
+        let s2 = _mm256_dp_ps::<0xff>(i0, i1);
+        let hi = _mm256_extractf128_ps::<1>(s2);
+        let lo = _mm256_castps256_ps128(s2);
+        let dp = _mm_add_ps(hi, lo);
+        res = _mm_extract_ps::<0>(dp);
+    }
+    f32::from_bits(res as u32)
+}
+
+/// Works with 8x8 matrices of floats, multiplying the `a` matrix by the `b` matrix, while accumulating results in `c`.
+pub fn fma_matmul_f32x8x8(a: &[f32; 64], b: &[f32; 64], c: &mut [f32; 64]) {
+    for i in 0..8 {
+        unsafe {
+            let b_row = _mm256_loadu_ps(&b[i * 8]);
+            let mut c_row = _mm256_loadu_ps(&c[i * 8]);
+            for j in 0..8 {
+                let a_cel = _mm256_set1_ps(a[i * 8 + j]); 
+                c_row = _mm256_fmadd_ps(a_cel, b_row, c_row);
+            }
+            _mm256_storeu_ps(&mut c[i * 8], c_row);
+        }
+    }
+}
+
 // Utilities
 
 fn random_vector(size: usize, prefix: &str, std_dev: f32) -> Result<Vec<ValueCell>, NormalError> {
@@ -542,5 +577,36 @@ mod tests {
 
         graphviz(&loss).ok();
         Ok(())
+    }
+
+    #[test]
+    fn simd_dot_product() {
+        if is_x86_feature_detected!("avx2") {
+            println!("AVX2 is supported");
+        }
+        let x = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
+        let y = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+        assert!(f32::abs(avx2_dot_f32x8(&x, &y) - 20.400002) < 0.00001);
+    }
+
+    #[test]
+    fn simd_matmul() {
+        if is_x86_feature_detected!("fma") {
+            println!("FMA is supported");
+        }
+        let a = [2.0; 64];
+        let mut c = [0.0; 64];
+        fma_matmul_f32x8x8(&a, &a, &mut c);
+        for i in 0..8 {
+            for j in 0..8 {
+                if j > 0 {
+                    print!(" ");
+                }
+                let cel = &c[i * 8 + j];
+                print!("{}", cel);
+                assert!(f32::abs(cel - 32.0) < 0.00001);
+            }
+            println!();
+        }
     }
 }
