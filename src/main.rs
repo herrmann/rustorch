@@ -1,10 +1,11 @@
-#![feature(stdsimd)]
+#![feature(stdsimd, stmt_expr_attributes)]
 
 use rand::thread_rng;
 use rand_distr::{Distribution, Normal, NormalError};
 use std::arch::x86_64::*;
 use std::cell::RefCell;
 use std::collections::HashSet;
+use std::fmt;
 use std::fs::File;
 use std::io::Write;
 use std::iter::zip;
@@ -279,6 +280,110 @@ impl SGD {
             let g = p.borrow().grad;
             let mut p = p.borrow_mut();
             p.data -= self.lr * g;
+        }
+    }
+}
+
+// Tensors
+
+#[derive(Debug)]
+struct StridedTensor {
+    storage: Rc<Vec<f32>>,
+    storage_offset: usize,
+    stride: Vec<isize>,
+    size: Vec<usize>,
+}
+
+impl Default for StridedTensor {
+    fn default() -> Self {
+        Self {
+            storage: Rc::new(vec![f32::default()]),
+            storage_offset: 0,
+            stride: vec![],
+            size: vec![],
+        }
+    }
+}
+
+impl StridedTensor {
+    fn element_size(&self) -> usize {
+        std::mem::size_of::<f32>()
+    }
+
+    fn numel(&self) -> usize {
+        self.size.iter().product()
+    }
+
+    fn item(&self) -> f32 {
+        let numel = self.numel();
+        assert_eq!(
+            numel, 1,
+            "A Tensor with {} elements cannot be converted to Scalar",
+            numel
+        );
+        self.storage[self.storage_offset]
+    }
+
+    fn elem(&self, indices: &[usize]) -> f32 {
+        assert!(
+            !self.size.is_empty(),
+            "Invalid index of a 0-dim tensor. Use `tensor.item()`"
+        );
+        assert_eq!(
+            indices.len(),
+            self.size.len(),
+            "Indices differ for tensor of dimension {}",
+            self.size.len()
+        );
+        for (d, (i, s)) in indices.iter().zip(self.size.iter()).enumerate() {
+            #[rustfmt::skip]
+            assert!(i < s, "Index {} is out of bounds for dimension {} with size {}", i, d, s);
+        }
+        let index = self.storage_offset as isize
+            + indices
+                .iter()
+                .zip(self.stride.iter())
+                .map(|(&i, &s)| i as isize * s)
+                .sum::<isize>();
+        assert!(
+            index >= 0 && (index as usize) < self.storage.len(),
+            "Index {} out of range for storage of size {}",
+            index,
+            self.storage.len()
+        );
+        self.storage[index as usize]
+    }
+
+    fn index(&self, indices: &[usize]) -> Self {
+        assert!(
+            indices.len() <= self.size.len(),
+            "Too many indices for tensor of dimension {}",
+            self.size.len()
+        );
+        todo!();
+    }
+}
+
+impl fmt::Display for StridedTensor {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.size.is_empty() {
+            write!(f, "{}", self.item())
+        } else {
+            write!(f, "[")?;
+            for i in 0..self.size[0] {
+                if i > 0 {
+                    write!(f, ", ")?;
+                }
+                #[rustfmt::skip]
+                StridedTensor {
+                    storage: Rc::clone(&self.storage),
+                    storage_offset: (self.storage_offset as isize + i as isize * self.stride[0]) as usize,
+                    stride: self.stride[1..].to_vec(),
+                    size: self.size[1..].to_vec(),
+                }
+                .fmt(f)?
+            }
+            write!(f, "]")
         }
     }
 }
@@ -577,6 +682,67 @@ mod tests {
 
         graphviz(&loss).ok();
         Ok(())
+    }
+
+    fn tensor_scalar(x: f32) -> StridedTensor {
+        StridedTensor {
+            storage: Rc::new(vec![x]),
+            ..Default::default()
+        }
+    }
+
+    fn tensor_example_1() -> StridedTensor {
+        let storage = Rc::new(vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
+        StridedTensor {
+            storage: storage,
+            storage_offset: 1,
+            stride: vec![2, 1],
+            size: vec![2, 2],
+        }
+    }
+
+    fn tensor_example_2() -> StridedTensor {
+        let storage = Rc::new(vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
+        StridedTensor {
+            storage: storage,
+            storage_offset: 0,
+            stride: vec![3, 2],
+            size: vec![2, 2],
+        }
+    }
+
+    #[test]
+    fn tensor_item() {
+        assert_eq!(tensor_scalar(42.0).item(), 42.0);
+    }
+
+    #[test]
+    fn tensor_display() {
+        assert_eq!(tensor_example_1().to_string(), "[[1, 2], [3, 4]]");
+        assert_eq!(tensor_example_2().to_string(), "[[0, 2], [3, 5]]");
+    }
+
+    #[test]
+    #[should_panic]
+    fn tensor_not_scalar() {
+        tensor_example_1().item();
+    }
+
+    #[test]
+    #[should_panic]
+    fn tensor_index_many_indices() {
+        tensor_example_1().index(&[0, 1, 2]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn tensor_index_out_of_bounds() {
+        tensor_example_1().index(&[0, 2]);
+    }
+
+    #[test]
+    fn tensor_stride() {
+        assert_eq!(tensor_example_1().elem(&[1, 1]), 4.0);
     }
 
     #[test]
