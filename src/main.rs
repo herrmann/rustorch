@@ -190,7 +190,11 @@ impl NonLinear {
         let mut w = Vec::with_capacity(out);
         let mut b = Vec::with_capacity(out);
         for j in 0..out {
-            let v = random_vector(inp, &format!("w{}{}", prefix, j + 1), 1. / (inp as f32).sqrt())?;
+            let v = random_vector(
+                inp,
+                &format!("w{}{}", prefix, j + 1),
+                1. / (inp as f32).sqrt(),
+            )?;
             w.push(v);
             b.push(lit(0., format!("b{}", j + 1)));
         }
