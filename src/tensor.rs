@@ -1,4 +1,4 @@
-use std::{rc::Rc, fmt};
+use std::{fmt, rc::Rc};
 
 #[derive(Debug)]
 struct StridedTensor {
@@ -130,13 +130,21 @@ impl StridedTensor {
 
     fn t(&self) -> Self {
         let rank = self.size.len();
-        assert_eq!(rank, 2, "Matrix transposition expects 2 dimensions, but got {}", rank);
+        assert_eq!(
+            rank, 2,
+            "Matrix transposition expects 2 dimensions, but got {}",
+            rank
+        );
         self.transpose(0, 1)
     }
 
     fn t_(&mut self) {
         let rank = self.size.len();
-        assert_eq!(rank, 2, "Matrix transposition expects 2 dimensions, but got {}", rank);
+        assert_eq!(
+            rank, 2,
+            "Matrix transposition expects 2 dimensions, but got {}",
+            rank
+        );
         self.transpose_(0, 1);
     }
 
@@ -211,7 +219,7 @@ impl fmt::Display for StridedTensor {
                     write!(f, ", ")?;
                 }
                 #[rustfmt::skip]
-                StridedTensor {
+                Self {
                     storage: Rc::clone(&self.storage),
                     storage_offset: (self.storage_offset as isize + i as isize * self.stride[0]) as usize,
                     stride: self.stride[1..].to_vec(),
