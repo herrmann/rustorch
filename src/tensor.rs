@@ -240,6 +240,51 @@ impl fmt::Display for StridedTensor {
     }
 }
 
+struct StridedTensorIterator<'a> {
+    tensor: &'a StridedTensor,
+    index: Option<Vec<usize>>,
+}
+
+impl<'a> StridedTensorIterator<'a> {
+    fn new(tensor: &'a StridedTensor) -> Self {
+        Self {
+            tensor: tensor,
+            index: Some(vec![0; tensor.size.len()]),
+        }
+    }
+}
+
+impl<'a> Iterator for StridedTensorIterator<'a> {
+    type Item = f32;
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(index) = &mut self.index {
+            let elem = self.tensor.elem(index);
+            if let Some((i, _)) = index
+                .iter()
+                .zip(self.tensor.size.iter())
+                .enumerate()
+                .rev()
+                .find(|(_, (&d, &s))| d < s - 1)
+            {
+                index[i] += 1;
+                for j in i + 1..index.len() {
+                    index[j] = 0;
+                }
+            } else {
+                self.index = None
+            }
+            return Some(elem);
+        }
+        None
+    }
+}
+
+impl StridedTensor {
+    fn iter(&self) -> StridedTensorIterator {
+        StridedTensorIterator::new(&self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,5 +436,16 @@ mod tests {
         let z = y.contiguous();
         assert!(z.is_contiguous());
         assert_eq!(z.numel(), z.storage.len());
+    }
+
+    #[test]
+    fn elem_iterator() {
+        let x = tensor_example_1();
+        let mut it = x.iter();
+        assert_eq!(it.next(), Some(1.0));
+        assert_eq!(it.next(), Some(2.0));
+        assert_eq!(it.next(), Some(3.0));
+        assert_eq!(it.next(), Some(4.0));
+        assert_eq!(it.next(), None);
     }
 }
