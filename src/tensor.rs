@@ -38,6 +38,19 @@ impl StridedTensor {
         self.storage[self.storage_offset]
     }
 
+    fn elem_offset(&self, indices: &[usize]) -> usize {
+        (self.storage_offset as isize
+            + indices
+                .iter()
+                .zip(self.stride.iter())
+                .map(|(&i, &s)| i as isize * s)
+                .sum::<isize>()) as usize
+    }
+
+    fn unchecked_elem(&self, indices: &[usize]) -> f32 {
+        self.storage[self.elem_offset(indices)]
+    }
+
     fn elem(&self, indices: &[usize]) -> f32 {
         assert!(
             !self.size.is_empty(),
@@ -53,19 +66,14 @@ impl StridedTensor {
             #[rustfmt::skip]
             assert!(i < s, "Index {} is out of bounds for dimension {} with size {}", i, d, s);
         }
-        let index = self.storage_offset as isize
-            + indices
-                .iter()
-                .zip(self.stride.iter())
-                .map(|(&i, &s)| i as isize * s)
-                .sum::<isize>();
+        let index = self.elem_offset(indices);
         assert!(
-            index >= 0 && (index as usize) < self.storage.len(),
+            index < self.storage.len(),
             "Index {} out of range for storage of size {}",
             index,
             self.storage.len()
         );
-        self.storage[index as usize]
+        self.storage[index]
     }
 
     fn index(&self, indices: &[usize]) -> Self {
