@@ -128,6 +128,18 @@ impl StridedTensor {
         self.size.swap(dim0, dim1);
     }
 
+    fn t(&self) -> Self {
+        let rank = self.size.len();
+        assert_eq!(rank, 2, "Matrix transposition expects 2 dimensions, but got {}", rank);
+        self.transpose(0, 1)
+    }
+
+    fn t_(&mut self) {
+        let rank = self.size.len();
+        assert_eq!(rank, 2, "Matrix transposition expects 2 dimensions, but got {}", rank);
+        self.transpose_(0, 1);
+    }
+
     fn is_contiguous(&self) -> bool {
         if self.numel() < 2 {
             return true;
@@ -333,6 +345,17 @@ mod tests {
             x.to_string(),
             "[[[1, 2, 3], [5, 6, 7]], [[3, 4, 5], [7, 8, 9]]]"
         );
+    }
+
+    #[test]
+    #[should_panic]
+    fn non_matrix_transpose() {
+        tensor_example_3().t();
+    }
+
+    #[test]
+    fn matrix_transpose() {
+        assert_eq!(tensor_example_1().t().to_string(), "[[1, 3], [2, 4]]");
     }
 
     #[test]
