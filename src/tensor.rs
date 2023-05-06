@@ -285,6 +285,14 @@ impl StridedTensor {
     }
 }
 
+impl<'a> IntoIterator for &'a StridedTensor {
+    type Item = f32;
+    type IntoIter = StridedTensorIterator<'a>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -447,5 +455,16 @@ mod tests {
         assert_eq!(it.next(), Some(3.0));
         assert_eq!(it.next(), Some(4.0));
         assert_eq!(it.next(), None);
+    }
+
+    #[test]
+    fn tensor_into_iter() {
+        let x = tensor_example_1();
+        let mut elems = 0;
+        for elem in &x {
+            assert!(elem > 0.0 && elem < 5.0);
+            elems += 1;
+        }
+        assert_eq!(elems, x.numel());
     }
 }
