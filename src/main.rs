@@ -417,6 +417,23 @@ impl StridedTensor {
         self.stride.swap(dim0, dim1);
         self.size.swap(dim0, dim1);
     }
+
+    fn is_contiguous(&self) -> bool {
+        if self.numel() < 2 {
+            return true;
+        }
+        let mut expected_stride = 1;
+        for (x, y) in self.size.iter().zip(self.stride.iter()).rev() {
+            if *x == 1 {
+                continue;
+            }
+            if *y != expected_stride {
+                return false;
+            }
+            expected_stride *= *x as isize;
+        }
+        true
+    }
 }
 
 impl fmt::Display for StridedTensor {
@@ -856,6 +873,14 @@ mod tests {
             x.to_string(),
             "[[[1, 2, 3], [5, 6, 7]], [[3, 4, 5], [7, 8, 9]]]"
         );
+    }
+
+    #[test]
+    fn contiguous_testing() {
+        assert!(tensor_example_1().is_contiguous());
+        assert!(!tensor_example_2().is_contiguous());
+        assert!(tensor_example_3().is_contiguous());
+        assert!(!tensor_example_3().transpose(1, 2).is_contiguous());
     }
 
     #[test]
