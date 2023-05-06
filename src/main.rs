@@ -398,6 +398,25 @@ impl StridedTensor {
             size: size_t,
         }
     }
+
+    fn transpose_(&mut self, dim0: usize, dim1: usize) {
+        let rank = self.size.len();
+        let check_dim = |rank, dim| {
+            assert!(
+                dim < rank,
+                "Dimension out of range (expected to be in range of [0, {}], but got {})",
+                rank - 1,
+                dim
+            );
+        };
+        check_dim(rank, dim0);
+        check_dim(rank, dim1);
+        if dim0 == dim1 {
+            return;
+        }
+        self.stride.swap(dim0, dim1);
+        self.size.swap(dim0, dim1);
+    }
 }
 
 impl fmt::Display for StridedTensor {
@@ -827,6 +846,16 @@ mod tests {
         assert_eq!(x.transpose(0, 1).to_string(), x.transpose(1, 0).to_string());
         assert_eq!(x.transpose(0, 2).to_string(), x.transpose(2, 0).to_string());
         assert_eq!(x.transpose(1, 2).to_string(), x.transpose(2, 1).to_string());
+    }
+
+    #[test]
+    fn inplace_transposition() {
+        let mut x = tensor_example_3();
+        x.transpose_(0, 1);
+        assert_eq!(
+            x.to_string(),
+            "[[[1, 2, 3], [5, 6, 7]], [[3, 4, 5], [7, 8, 9]]]"
+        );
     }
 
     #[test]
