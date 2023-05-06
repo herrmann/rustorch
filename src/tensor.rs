@@ -144,6 +144,48 @@ impl StridedTensor {
         }
         true
     }
+
+    fn extend_vec(&self, storage: &mut Vec<f32>) {
+        if self.size.len() == 1 {
+            for i in 0..self.size[0] {
+                let offset = self.storage_offset as isize + i as isize * self.stride[0];
+                storage.push(self.storage[offset as usize]);
+            }
+        } else {
+            for i in 0..self.size[0] {
+                let offset = self.storage_offset as isize + i as isize * self.stride[0];
+                Self {
+                    storage: Rc::clone(&self.storage),
+                    storage_offset: offset as usize,
+                    stride: self.stride[1..].to_vec(),
+                    size: self.size[1..].to_vec(),
+                }
+                .extend_vec(storage);
+            }
+        }
+    }
+
+    fn contiguous(&self) -> Self {
+        let mut new_stride: Vec<isize> = self
+            .size
+            .iter()
+            .rev()
+            .scan(1, |dim_prod, &dim_size| {
+                let new_dim_size = *dim_prod;
+                *dim_prod *= dim_size as isize;
+                Some(new_dim_size)
+            })
+            .collect();
+        new_stride.reverse();
+        let mut new_storage = Vec::with_capacity(self.numel());
+        self.extend_vec(&mut new_storage);
+        Self {
+            storage: Rc::new(new_storage),
+            storage_offset: 0,
+            stride: new_stride,
+            size: self.size.clone(),
+        }
+    }
 }
 
 impl fmt::Display for StridedTensor {
@@ -299,5 +341,16 @@ mod tests {
         assert!(!tensor_example_2().is_contiguous());
         assert!(tensor_example_3().is_contiguous());
         assert!(!tensor_example_3().transpose(1, 2).is_contiguous());
+    }
+
+    #[test]
+    fn make_contiguous() {
+        let x = tensor_example_3();
+        assert!(x.is_contiguous());
+        let y = x.transpose(0, 1);
+        assert!(!y.is_contiguous());
+        let z = y.contiguous();
+        assert!(z.is_contiguous());
+        assert_eq!(z.numel(), z.storage.len());
     }
 }
