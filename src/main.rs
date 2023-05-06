@@ -362,6 +362,38 @@ impl StridedTensor {
         );
         todo!();
     }
+
+    fn transpose(&self, dim0: usize, dim1: usize) -> Self {
+        let rank = self.size.len();
+        let check_dim = |rank, dim| {
+            assert!(
+                dim < rank,
+                "Dimension out of range (expected to be in range of [0, {}], but got {})",
+                rank - 1,
+                dim
+            );
+        };
+        check_dim(rank, dim0);
+        check_dim(rank, dim1);
+        if dim0 == dim1 {
+            return Self {
+                storage: Rc::clone(&self.storage),
+                storage_offset: self.storage_offset,
+                stride: self.stride.clone(),
+                size: self.size.clone(),
+            };
+        }
+        let mut stride_t = self.stride.clone();
+        let mut size_t = self.size.clone();
+        stride_t.swap(dim0, dim1);
+        size_t.swap(dim0, dim1);
+        Self {
+            storage: Rc::clone(&self.storage),
+            storage_offset: self.storage_offset,
+            stride: stride_t,
+            size: size_t,
+        }
+    }
 }
 
 impl fmt::Display for StridedTensor {
@@ -711,6 +743,18 @@ mod tests {
         }
     }
 
+    fn tensor_example_3() -> StridedTensor {
+        let storage = Rc::new(vec![
+            1.0, 2.0, 3.0, 3.0, 4.0, 5.0, 5.0, 6.0, 7.0, 7.0, 8.0, 9.0,
+        ]);
+        StridedTensor {
+            storage: storage,
+            storage_offset: 0,
+            stride: vec![6, 3, 1],
+            size: vec![2, 2, 3],
+        }
+    }
+
     #[test]
     fn tensor_item() {
         assert_eq!(tensor_scalar(42.0).item(), 42.0);
@@ -743,6 +787,42 @@ mod tests {
     #[test]
     fn tensor_stride() {
         assert_eq!(tensor_example_1().elem(&[1, 1]), 4.0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn transposition_wrong_rank_1() {
+        tensor_example_3().transpose(0, 3);
+    }
+
+    #[test]
+    #[should_panic]
+    fn transposition_wrong_rank_2() {
+        tensor_example_3().transpose(3, 0);
+    }
+
+    #[test]
+    fn transposition() {
+        let x = tensor_example_3();
+        assert_eq!(
+            x.to_string(),
+            "[[[1, 2, 3], [3, 4, 5]], [[5, 6, 7], [7, 8, 9]]]"
+        );
+        assert_eq!(
+            x.transpose(0, 1).to_string(),
+            "[[[1, 2, 3], [5, 6, 7]], [[3, 4, 5], [7, 8, 9]]]"
+        );
+        assert_eq!(
+            x.transpose(0, 2).to_string(),
+            "[[[1, 5], [3, 7]], [[2, 6], [4, 8]], [[3, 7], [5, 9]]]"
+        );
+        assert_eq!(
+            x.transpose(1, 2).to_string(),
+            "[[[1, 3], [2, 4], [3, 5]], [[5, 7], [6, 8], [7, 9]]]"
+        );
+        assert_eq!(x.transpose(0, 1).to_string(), x.transpose(1, 0).to_string());
+        assert_eq!(x.transpose(0, 2).to_string(), x.transpose(2, 0).to_string());
+        assert_eq!(x.transpose(1, 2).to_string(), x.transpose(2, 1).to_string());
     }
 
     #[test]
