@@ -229,6 +229,21 @@ impl StridedTensor {
             size: self.size.clone(),
         }
     }
+
+    fn dot(&self, other: &Self) -> f32 {
+        assert!(
+            self.size.len() == 1 && other.size.len() == 1,
+            "1D tensors expected, but got {}D and {}D tensors",
+            self.size.len(),
+            other.size.len()
+        );
+        assert!(
+            self.size[0] == other.size[0],
+            "Inconsistent tensor size, expected tensor [{}] and src [{}] to have the same number of elements, but got {} and {} elements respectively",
+            self.size[0], other.size[0], self.size[0], other.size[0]
+        );
+        self.iter().zip(other.iter()).map(|(x, y)| x * y).sum()
+    }
 }
 
 impl fmt::Display for StridedTensor {
@@ -528,5 +543,40 @@ mod tests {
             z.flip(2).to_string(),
             "[[[2, 1], [4, 3]], [[6, 5], [8, 7]]]"
         );
+    }
+
+    #[test]
+    #[should_panic]
+    fn dot_product_with_non_vectors() {
+        tensor_example_1().dot(&tensor_example_3());
+    }
+
+    #[test]
+    #[should_panic]
+    fn dot_product_with_different_sizes() {
+        let x = StridedTensor {
+            storage: Rc::new(vec![1.0, 2.0, 3.0]),
+            storage_offset: 0,
+            stride: vec![1],
+            size: vec![3],
+        };
+        let y = StridedTensor {
+            storage: Rc::new(vec![4.0, 5.0]),
+            storage_offset: 0,
+            stride: vec![1],
+            size: vec![2],
+        };
+        x.dot(&y);
+    }
+
+    #[test]
+    fn dot_product() {
+        let x = StridedTensor {
+            storage: Rc::new(vec![1.0, 2.0, 3.0]),
+            storage_offset: 0,
+            stride: vec![1],
+            size: vec![3],
+        };
+        assert_eq!(x.dot(&x), 14.0);
     }
 }
