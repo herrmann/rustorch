@@ -117,18 +117,19 @@ impl StridedTensor {
         }
     }
 
-    fn transpose_(&mut self, dim0: usize, dim1: usize) {
+    fn check_dim(&self, dim: usize) {
         let rank = self.size.len();
-        let check_dim = |rank, dim| {
             assert!(
                 dim < rank,
                 "Dimension out of range (expected to be in range of [0, {}], but got {})",
                 rank - 1,
                 dim
             );
-        };
-        check_dim(rank, dim0);
-        check_dim(rank, dim1);
+    }
+
+    fn transpose_(&mut self, dim0: usize, dim1: usize) {
+        self.check_dim(dim0);
+        self.check_dim(dim1);
         if dim0 == dim1 {
             return;
         }
@@ -210,6 +211,20 @@ impl StridedTensor {
         Self {
             storage: Rc::new(new_storage),
             storage_offset: 0,
+            stride: new_stride,
+            size: self.size.clone(),
+        }
+    }
+
+    fn flip(&self, dim: usize) -> StridedTensor {
+        self.check_dim(dim);
+        let mut new_stride = self.stride.clone();
+        new_stride[dim] *= -1;
+        let offset =
+            self.storage_offset as isize + self.stride[dim] * (self.size[dim] - 1) as isize;
+        StridedTensor {
+            storage: Rc::clone(&self.storage),
+            storage_offset: offset as usize,
             stride: new_stride,
             size: self.size.clone(),
         }
@@ -466,5 +481,52 @@ mod tests {
             elems += 1;
         }
         assert_eq!(elems, x.numel());
+    }
+
+    #[test]
+    fn tensor_flip() {
+        let storage = Rc::new(vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+        let x = StridedTensor {
+            storage: Rc::clone(&storage),
+            storage_offset: 1,
+            stride: vec![3, 1],
+            size: vec![3, 3],
+        };
+        assert_eq!(x.flip(0).to_string(), "[[7, 8, 9], [4, 5, 6], [1, 2, 3]]");
+        assert_eq!(x.flip(1).to_string(), "[[3, 2, 1], [6, 5, 4], [9, 8, 7]]");
+        assert_eq!(
+            x.flip(0).flip(1).to_string(),
+            "[[9, 8, 7], [6, 5, 4], [3, 2, 1]]"
+        );
+        assert_eq!(x.to_string(), x.flip(0).flip(0).to_string());
+        assert_eq!(x.to_string(), x.flip(1).flip(1).to_string());
+        assert_eq!(x.to_string(), x.flip(0).flip(1).flip(0).flip(1).to_string());
+        let y = StridedTensor {
+            storage: Rc::clone(&storage),
+            storage_offset: 1,
+            stride: vec![4, 2],
+            size: vec![2, 2],
+        };
+        assert_eq!(y.flip(0).to_string(), "[[5, 7], [1, 3]]");
+        assert_eq!(y.flip(1).to_string(), "[[3, 1], [7, 5]]");
+        assert_eq!(y.flip(0).flip(1).to_string(), "[[7, 5], [3, 1]]");
+        let z = StridedTensor {
+            storage: Rc::clone(&storage),
+            storage_offset: 1,
+            stride: vec![4, 2, 1],
+            size: vec![2, 2, 2],
+        };
+        assert_eq!(
+            z.flip(0).to_string(),
+            "[[[5, 6], [7, 8]], [[1, 2], [3, 4]]]"
+        );
+        assert_eq!(
+            z.flip(1).to_string(),
+            "[[[3, 4], [1, 2]], [[7, 8], [5, 6]]]"
+        );
+        assert_eq!(
+            z.flip(2).to_string(),
+            "[[[2, 1], [4, 3]], [[6, 5], [8, 7]]]"
+        );
     }
 }
