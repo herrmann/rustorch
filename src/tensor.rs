@@ -230,6 +230,23 @@ impl StridedTensor {
         }
     }
 
+    fn full(size: &[usize], value: f32) -> Self {
+        Self {
+            storage: Rc::new(vec![value]),
+            storage_offset: 0,
+            stride: vec![0; size.len()],
+            size: size.to_vec(),
+        }
+    }
+
+    fn zeros(size: &[usize]) -> Self {
+        Self::full(size, Default::default())
+    }
+
+    fn ones(size: &[usize]) -> Self {
+        Self::full(size, 1.0)
+    }
+
     fn dot(&self, other: &Self) -> f32 {
         assert!(
             self.size.len() == 1 && other.size.len() == 1,
@@ -543,6 +560,13 @@ mod tests {
             z.flip(2).to_string(),
             "[[[2, 1], [4, 3]], [[6, 5], [8, 7]]]"
         );
+    }
+
+    #[test]
+    fn full_tensor() {
+        assert_eq!(StridedTensor::zeros(&[3]).to_string(), "[0, 0, 0]");
+        assert_eq!(StridedTensor::ones(&[2]).to_string(), "[1, 1]");
+        assert_eq!(StridedTensor::full(&[2, 2], 2.0).to_string(), "[[2, 2], [2, 2]]");
     }
 
     #[test]
