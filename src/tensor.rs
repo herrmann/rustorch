@@ -119,12 +119,12 @@ impl StridedTensor {
 
     fn check_dim(&self, dim: usize) {
         let rank = self.size.len();
-            assert!(
-                dim < rank,
-                "Dimension out of range (expected to be in range of [0, {}], but got {})",
-                rank - 1,
-                dim
-            );
+        assert!(
+            dim < rank,
+            "Dimension out of range (expected to be in range of [0, {}], but got {})",
+            rank - 1,
+            dim
+        );
     }
 
     fn transpose_(&mut self, dim0: usize, dim1: usize) {
