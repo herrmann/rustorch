@@ -34,6 +34,24 @@ fn contiguous_stride(size: &[usize]) -> Vec<isize> {
 }
 
 impl StridedTensor {
+    fn new(size: &[usize], data: &[f32]) -> Self {
+        let numel = size.iter().product::<usize>();
+        assert_eq!(
+            numel,
+            data.len(),
+            "Expected data with {} elements when creating tensor of size {:?}, but got {}",
+            numel,
+            size,
+            data.len()
+        );
+        Self {
+            storage: Rc::new(data.to_vec()),
+            storage_offset: 0,
+            stride: contiguous_stride(size),
+            size: size.to_vec(),
+        }
+    }
+
     fn element_size(&self) -> usize {
         std::mem::size_of::<f32>()
     }
@@ -563,6 +581,20 @@ mod tests {
         assert_eq!(
             z.flip(2).to_string(),
             "[[[2, 1], [4, 3]], [[6, 5], [8, 7]]]"
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn new_tensor_with_missing_data() {
+        StridedTensor::new(&[2, 2], &[1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    fn new_tensor() {
+        assert_eq!(
+            StridedTensor::new(&[2, 2], &[1.0, 2.0, 3.0, 4.0]).to_string(),
+            "[[1, 2], [3, 4]]"
         );
     }
 
