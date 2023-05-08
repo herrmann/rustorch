@@ -19,6 +19,20 @@ impl Default for StridedTensor {
     }
 }
 
+fn contiguous_stride(size: &[usize]) -> Vec<isize> {
+    let mut stride: Vec<isize> = size
+        .iter()
+        .rev()
+        .scan(1, |dim_prod, &dim_size| {
+            let new_dim_size = *dim_prod;
+            *dim_prod *= dim_size as isize;
+            Some(new_dim_size)
+        })
+        .collect();
+    stride.reverse();
+    stride
+}
+
 impl StridedTensor {
     fn element_size(&self) -> usize {
         std::mem::size_of::<f32>()
@@ -195,17 +209,7 @@ impl StridedTensor {
     }
 
     fn contiguous(&self) -> Self {
-        let mut new_stride: Vec<isize> = self
-            .size
-            .iter()
-            .rev()
-            .scan(1, |dim_prod, &dim_size| {
-                let new_dim_size = *dim_prod;
-                *dim_prod *= dim_size as isize;
-                Some(new_dim_size)
-            })
-            .collect();
-        new_stride.reverse();
+        let mut new_stride: Vec<isize> = contiguous_stride(&self.size);
         let mut new_storage = Vec::with_capacity(self.numel());
         self.extend_vec(&mut new_storage);
         Self {
