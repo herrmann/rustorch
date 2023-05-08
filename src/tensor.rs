@@ -238,13 +238,13 @@ impl StridedTensor {
         }
     }
 
-    fn flip(&self, dim: usize) -> StridedTensor {
+    fn flip(&self, dim: usize) -> Self {
         self.check_dim(dim);
         let mut new_stride = self.stride.clone();
         new_stride[dim] *= -1;
         let offset =
             self.storage_offset as isize + self.stride[dim] * (self.size[dim] - 1) as isize;
-        StridedTensor {
+        Self {
             storage: Rc::clone(&self.storage),
             storage_offset: offset as usize,
             stride: new_stride,
@@ -602,7 +602,10 @@ mod tests {
     fn full_tensor() {
         assert_eq!(StridedTensor::zeros(&[3]).to_string(), "[0, 0, 0]");
         assert_eq!(StridedTensor::ones(&[2]).to_string(), "[1, 1]");
-        assert_eq!(StridedTensor::full(&[2, 2], 2.0).to_string(), "[[2, 2], [2, 2]]");
+        assert_eq!(
+            StridedTensor::full(&[2, 2], 2.0).to_string(),
+            "[[2, 2], [2, 2]]"
+        );
     }
 
     #[test]
