@@ -227,7 +227,7 @@ impl StridedTensor {
     }
 
     fn contiguous(&self) -> Self {
-        let mut new_stride: Vec<isize> = contiguous_stride(&self.size);
+        let new_stride: Vec<isize> = contiguous_stride(&self.size);
         let mut new_storage = Vec::with_capacity(self.numel());
         self.extend_vec(&mut new_storage);
         Self {
