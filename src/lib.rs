@@ -1,4 +1,4 @@
-#![feature(stdsimd, stmt_expr_attributes)]
+#![feature(stmt_expr_attributes)]
 
 use rand::thread_rng;
 use rand_distr::{Distribution, Normal, NormalError};
